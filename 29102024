@@ -1,0 +1,46 @@
+param (
+    [string]$Subnet,
+    [int]$Timeout = 2000
+)
+$subnet="10.0.0.0"
+function Test-Port445 {
+    param (
+        [string]$ComputerName,
+        [int]$Timeout
+    )
+    
+    $port = 445
+    
+    try {
+        $tcpClient = New-Object System.Net.Sockets.TcpClient
+        $asyncResult = $tcpClient.BeginConnect($ComputerName, $port, $null, $null)
+        if ($asyncResult.AsyncWaitHandle.WaitOne($Timeout, $false)) {
+            $tcpClient.EndConnect($asyncResult)
+            $tcpClient.Close()
+            Write-Host "Port 445 is open on $ComputerName." -ForegroundColor Green
+			start-sleep -seconds 10
+        } else {
+            # Se non si Ã¨ connessi entro il timeout, chiudiamo TcpClient
+            $tcpClient.Close()
+           # Write-Host "Port 445 is closed or unreachable on $ComputerName (timeout)." -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "Error: Unable to connect to $ComputerName." -ForegroundColor Yellow
+    }
+}
+function Get-IpRange {
+    param (
+        [string]$Subnet
+    )
+    $baseIp = [System.Net.IPAddress]::Parse($Subnet)
+    $ipBytes = $baseIp.GetAddressBytes()
+    for ($i = 1; $i -lt 255; $i++) {
+        $ipBytes[3] = $i
+        [System.Net.IPAddress]::Parse(($ipBytes -join '.'))
+    }
+}
+$ipRange = Get-IpRange -Subnet $Subnet
+foreach ($ip in $ipRange) {
+    Write-Host "Testing $ip...`r" -nonewline 
+    Test-Port445 -ComputerName $ip.ToString() -Timeout $Timeout
+}
