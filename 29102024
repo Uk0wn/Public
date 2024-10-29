@@ -2,7 +2,7 @@ param (
     [string]$Subnet,
     [int]$Timeout = 2000
 )
-$subnet="10.0.0.0"
+$subnet="172.27.150.0"
 function Test-Port445 {
     param (
         [string]$ComputerName,
