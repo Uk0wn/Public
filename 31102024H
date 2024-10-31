@@ -5,7 +5,7 @@ $root = ($domain.GetDirectoryEntry())
 # Crea il DirectorySearcher
 $searcher = New-Object System.DirectoryServices.DirectorySearcher
 $searcher.SearchRoot = $root
-$searcher.Filter = "(&(objectCategory=computer)(lastLogonTimestamp>= $([DateTime]::Now.AddDays(-30).ToFileTime())))" # Filtra per computer connessi negli ultimi 30 giorni
+$searcher.Filter = "(&(objectCategory=computer)(lastLogonTimestamp>=" + $([DateTime]::Now.AddDays(-30).ToFileTime()) + "))"  # Filtra per computer connessi negli ultimi 30 giorni
 $searcher.PropertiesToLoad.Add("name") | Out-Null
 $searcher.PropertiesToLoad.Add("operatingSystem") | Out-Null
 $searcher.PropertiesToLoad.Add("lastLogonTimestamp") | Out-Null
@@ -17,8 +17,8 @@ $results = $searcher.FindAll()
 foreach ($result in $results) {
     $computer = $result.Properties
     [PSCustomObject]@{
-        Name             = $computer.name[0]
-        OperatingSystem  = $computer.operatingsystem[0]
-        LastLogonDate    = [DateTime]::FromFileTime([Int64]$computer.lastLogonTimestamp[0])
+        Name             = if ($computer["name"]) { $computer["name"][0] } else { "N/A" }
+        OperatingSystem  = if ($computer["operatingSystem"]) { $computer["operatingSystem"][0] } else { "N/A" }
+        LastLogonDate    = if ($computer["lastLogonTimestamp"]) { [DateTime]::FromFileTime([Int64]$computer["lastLogonTimestamp"][0]) } else { "N/A" }
     }
 }
