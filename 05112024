@@ -1,0 +1,75 @@
+# Chiedi all'utente di inserire l'indirizzo IP o la subnet
+$targetInput = Read-Host "Inserisci l'indirizzo IP o la subnet (es. 192.168.1.1 o 192.168.1.0/24)"
+
+# Chiedi all'utente di inserire l'intervallo di porte (ad es. 20-25 o 80,443)
+$portsInput = Read-Host "Inserisci le porte da scansionare (es. 20-25,80,443)"
+
+# Funzione per espandere un intervallo di porte
+function Expand-Ports {
+    param ($portsInput)
+    $ports = @()
+    
+    foreach ($item in $portsInput -split ",") {
+        if ($item -match "(\d+)-(\d+)") {
+            $ports += ($matches[1]..$matches[2])
+        } else {
+            $ports += [int]$item
+        }
+    }
+    
+    return $ports | Sort-Object -Unique
+}
+
+# Funzione per espandere una subnet
+function Expand-Subnet {
+    param ($subnet)
+    $ipList = @()
+    
+    if ($subnet -match "/(\d+)$") {
+        # Calcola la subnet mask in base al CIDR
+        $cidr = [int]$matches[1]
+        $baseIp = $subnet -replace "/\d+$"
+        $ipList = 1..([math]::Pow(2, 32 - $cidr) - 2) | ForEach-Object {
+            $newIp = [System.Net.IPAddress]::Parse($baseIp).Address + $_
+            [System.Net.IPAddress]::Parse(($newIp).ToString())
+        }
+    } else {
+        # Singolo IP, nessuna subnet da espandere
+        $ipList += $subnet
+    }
+    
+    return $ipList
+}
+
+# Espandi gli intervalli di porte e subnet
+$ports = Expand-Ports $portsInput
+$ips = Expand-Subnet $targetInput
+
+# Inizializza l'array per i risultati
+$results = @()
+
+# Scansiona ogni IP e porta
+foreach ($ip in $ips) {
+    foreach ($port in $ports) {
+        $client = New-Object System.Net.Sockets.TcpClient
+        try {
+            $client.Connect($ip.ToString(), $port)
+            $results += [pscustomobject]@{
+                "Indirizzo IP" = $ip
+                "Porta"        = $port
+                "Stato"        = "Open"
+            }
+        } catch {
+            $results += [pscustomobject]@{
+                "Indirizzo IP" = $ip
+                "Porta"        = $port
+                "Stato"        = "Closed-Filtered"
+            }
+        } finally {
+            $client.Close()
+        }
+    }
+}
+
+# Mostra i risultati
+$results | Format-Table -AutoSize
