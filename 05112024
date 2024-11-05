@@ -1,4 +1,4 @@
-function Invoke-Checker {
+function Invoke-PortScan {
     param (
         [string]$targetInput,
         [string]$portsInput
@@ -23,22 +23,36 @@ function Invoke-Checker {
     # Funzione per espandere una subnet
     function Expand-Subnet {
         param ($subnet)
+
         $ipList = @()
         
-        if ($subnet -match "/(\d+)$") {
-            $cidr = [int]$matches[1]
-            $baseIp = $subnet -replace "/\d+$"
-            $ipList = 1..([math]::Pow(2, 32 - $cidr) - 2) | ForEach-Object {
-                $newIp = [System.Net.IPAddress]::Parse($baseIp).Address + $_
-                [System.Net.IPAddress]::Parse(($newIp).ToString())
+        # Verifica se è stata fornita una subnet in notazione CIDR
+        if ($subnet -match "^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/(\d{1,2})$") {
+            $baseIp = [System.Net.IPAddress]::Parse($matches[1])
+            $cidr = [int]$matches[2]
+
+            # Calcola il numero totale di IP nella subnet
+            $hostBits = 32 - $cidr
+            $numAddresses = [math]::Pow(2, $hostBits) - 2  # Escludi l'IP di rete e di broadcast
+
+            # Converte l'indirizzo base in formato numerico
+            $baseIpInt = [BitConverter]::ToUInt32($baseIp.GetAddressBytes().Reverse(), 0)
+
+            # Crea la lista di IP
+            for ($i = 1; $i -le $numAddresses; $i++) {
+                $currentIpInt = $baseIpInt + $i
+                $currentIpBytes = [BitConverter]::GetBytes([uint32]$currentIpInt)
+                $ipList += [System.Net.IPAddress]::Parse(($currentIpBytes[3..0] -join '.'))
             }
         } else {
+            # Singolo IP, nessuna subnet da espandere
             $ipList += $subnet
         }
-        
+
         return $ipList
     }
 
+    # Espandi gli intervalli di porte e subnet
     $ports = Expand-Ports $portsInput
     $ips = Expand-Subnet $targetInput
     $results = @()
@@ -51,13 +65,13 @@ function Invoke-Checker {
                 $results += [pscustomobject]@{
                     "Indirizzo IP" = $ip
                     "Porta"        = $port
-                    "Stato"        = "Open"
+                    "Stato"        = "Aperta"
                 }
             } catch {
                 $results += [pscustomobject]@{
                     "Indirizzo IP" = $ip
                     "Porta"        = $port
-                    "Stato"        = "Closed"
+                    "Stato"        = "Bloccata"
                 }
             } finally {
                 $client.Close()
@@ -65,8 +79,9 @@ function Invoke-Checker {
         }
     }
 
+    # Mostra i risultati
     $results | Format-Table -AutoSize
 }
 
 # Esecuzione automatica per testare
-Invoke-Checker -targetInput "172.27.144.0/24" -portsInput "445,139"
+Invoke-PortScan -targetInput "192.168.1.0/24" -portsInput "139,445"
